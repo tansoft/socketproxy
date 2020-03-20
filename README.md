@@ -62,7 +62,9 @@ make
 ```
 
 ##用法
+
 ###基础的负载均衡模式
+
 ``` bash
 #Http负载均衡，或多个MySql读库轮询等场景
 socketproxy -d -p 80 -t 120 -r 192.168.0.10:80 -r 192.168.0.11:80 -r 192.168.0.12:80
@@ -173,6 +175,7 @@ Permission denied!
 ```
 
 ###动态更新转发，类似DDNS功能
+
 ``` bash
  socketproxy -d -p 80 -r 202.1.2.3:80 -hr 8080 updateforward
 ```
@@ -197,6 +200,7 @@ $ curl "http://202.1.2.3:8080/?cmd="
 ```
 
 ##参数列表
+
 ``` bash
   -d : 后台运行模式
   -p portnum : 监听端口
