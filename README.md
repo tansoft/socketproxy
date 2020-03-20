@@ -50,12 +50,14 @@ Params:
 SocketProxy 依赖 libevent，因此需要event库。
 
 ### Mac
+
 ``` bash
 brew install libevent
 make
 ```
 
 ### Centos
+
 ``` bash
 yum -y install libevent-devel
 make
