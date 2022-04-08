@@ -59,7 +59,7 @@ make
 ### Centos
 
 ``` bash
-yum -y install libevent-devel
+yum -y install libevent-devel gcc-c++
 make
 ```
 
