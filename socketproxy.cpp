@@ -3,6 +3,7 @@
 * @author Barry(barrytan@21cn.com,QQ:20962493)
 * @2010-12-08 新建
 * @2011-02-23 支持协议判断，因此模式必须是客户端先发数据包
+* @2022-04-08 增加原始数据调试打印
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,6 +74,7 @@ struct timeval g_tvtimeout;
 struct timeval *g_ptvtimeout=NULL;
 map<uint16_t,char *> g_localcmdserver;
 struct timeval g_hrmonitor;
+int debugprint = 0;
 
 static pid_t	*childpid = NULL;
 						/* ptr to array allocated at run-time */
@@ -194,6 +196,57 @@ int pcloseex(FILE *fp)
 	}
 
 	return(stat);	/* return child's termination status */
+}
+
+void pretty_print(struct evbuffer *src, int char_count=16) {
+	struct evbuffer *ret = evbuffer_new();
+	struct evbuffer *linestr = evbuffer_new();
+	const char *sym = "%02X ";
+	const char *symoff = "%08XH ";
+	int idx,i;
+	int mididx= char_count / 2;
+	u_char ch;
+	u_char *pch = EVBUFFER_DATA(src);
+	int len = EVBUFFER_LENGTH(src);
+	for(i=0;i<len;i++) {
+		idx=i % char_count;
+		ch=*(pch+i);
+		if (idx==0) {
+			evbuffer_add_printf(ret,symoff, i);
+		}
+		if (idx==mididx) {
+			evbuffer_add_printf(ret, "- ");
+		}
+		evbuffer_add_printf(ret, sym, ch);
+		//trim the '\\' and '%'
+		if (ch > 0x1f && ch!='\\' && ch!='%') {
+			evbuffer_add_printf(linestr, "%c", ch);
+		} else {
+			evbuffer_add_printf(linestr, ".");
+		}
+		if (idx == char_count - 1) {
+			evbuffer_add_buffer(ret, linestr);
+			if (i != len-1) {
+				evbuffer_add_printf(ret, "\r\n");
+			}
+			evbuffer_drain(linestr, EVBUFFER_LENGTH(linestr));
+		}
+	}
+	if (EVBUFFER_LENGTH(linestr) > 0) {
+		//the last raw data is not print
+		for(idx=(i-1) % char_count; idx < char_count-1; idx++) {
+			if (idx == mididx) {
+				evbuffer_add_printf(ret, "  ");
+			} else {
+				evbuffer_add_printf(ret, "   ");
+			}
+		}
+		evbuffer_add_buffer(ret, linestr);
+	}
+	evbuffer_free(linestr);
+	evbuffer_add_printf(ret, "\r\n");
+	fprintf(stderr, "%s", EVBUFFER_DATA(ret));
+	evbuffer_free(ret);
 }
 
 void free_service(proxy_service *s)
@@ -382,6 +435,7 @@ void waitfor_read(int fd,short event,void *arg)
 			return;
 		}
 	}
+	if (debugprint) pretty_print(outbuf);
 	if (outfd==INVALID_SOCKET)
 	{
 		const sockaddr_in *sin=NULL;
@@ -870,6 +924,7 @@ void help()
 	fprintf(stderr,"Params:\n");
 	fprintf(stderr,"  -d : deamon mode\n");
 	//fprintf(stderr,"  tcp or udp:choose the protocol,default is tcp(current version is only support tcp mode)\n");
+	fprintf(stderr,"  -debug : print raw data for debug\n");
 	fprintf(stderr,"  -p portnum : listen port\n");
     fprintf(stderr,"  -a address : listen addr, default is 0.0.0.0\n");
 	fprintf(stderr,"  -r host:port or [host port] : forward to host:port\n");
@@ -902,23 +957,18 @@ int main(int argc,char *argv[])
 	chdir(dirname(realpath(argv[0], 0)));
 	for(int i=1;i<argc;i++)
 	{
-		if (strcmp(argv[i],"tcp")==0)
-		{
+		if (strcmp(argv[i],"tcp")==0) {
 			st=SOCK_STREAM;
 			pt=IPPROTO_TCP;
-		}
-		else if (strcmp(argv[i],"udp")==0)
-		{
+		} else if (strcmp(argv[i],"udp")==0) {
 			//fixme current version do not support UDP
 			st=SOCK_DGRAM;
 			pt=IPPROTO_UDP;
-		}
-		else if (strcmp(argv[i],"-d")==0)
-		{
-			deamon=1;
-		}
-		else if (strcmp(argv[i],"-t")==0)
-		{
+		} else if (strcmp(argv[i],"-d")==0) {
+			deamon = 1;
+		} else if (strcmp(argv[i],"-debug") == 0) {
+			debugprint = 1;
+		} else if (strcmp(argv[i],"-t")==0) {
 			i++;
 			if (i>=argc)
 			{
@@ -928,9 +978,7 @@ int main(int argc,char *argv[])
 			}
 			g_tvtimeout.tv_sec=atoi(argv[i]);
 			g_ptvtimeout=&g_tvtimeout;
-		}
-		else if (strcmp(argv[i],"-p")==0)
-		{
+		} else if (strcmp(argv[i],"-p")==0) {
 			i++;
 			if (i>=argc)
 			{
@@ -939,9 +987,7 @@ int main(int argc,char *argv[])
 				return 1;
 			}
 			port=atoi(argv[i]);
-		}
-        else if (strcmp(argv[i],"-a")==0)
-        {
+		} else if (strcmp(argv[i],"-a")==0) {
             i++;
             if (i>=argc)
             {
@@ -950,9 +996,7 @@ int main(int argc,char *argv[])
                 return 1;
             }
             address=inet_addr(argv[i]);
-        }
-		else if (strcmp(argv[i],"-r")==0)
-		{
+        } else if (strcmp(argv[i],"-r")==0) {
 			i++;
 			if (i>=argc)
 			{
@@ -988,9 +1032,7 @@ int main(int argc,char *argv[])
 				return 1;
 			}
 			g_proxylist.push_back(s_in);
-		}
-		else if (strcmp(argv[i],"-f")==0)
-		{
+		} else if (strcmp(argv[i],"-f")==0) {
 			i++;
 			if (i>=argc)
 			{
@@ -1039,9 +1081,7 @@ int main(int argc,char *argv[])
 				if (info.filterlen>g_filtermaxsize) g_filtermaxsize=info.filterlen;
 				g_filterlist.push_back(info);
 			}
-		}
-		else if (strcmp(argv[i],"-hr")==0)
-		{
+		} else if (strcmp(argv[i],"-hr")==0) {
 			i++;
 			if (i>=argc)
 			{
@@ -1064,9 +1104,7 @@ int main(int argc,char *argv[])
 				return 1;
 			}
 			g_localcmdserver.insert(map<uint16_t,char *>::value_type(port,strdup(argv[i])));
-		}
-		else
-		{
+		} else {
 			fprintf(stderr,"do not support param %s.\n",argv[i]);
 			help();
 			return 1;
