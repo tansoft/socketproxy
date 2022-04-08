@@ -349,7 +349,6 @@ void waitfor_write(int fd,short event,void *arg)
 	struct evbuffer *outbuf;
 	struct event *outevw;
 	struct event *inevr;
-	int infd;
 	proxy_service *s=(proxy_service *)arg;
 	if (event&EV_TIMEOUT)
 	{
