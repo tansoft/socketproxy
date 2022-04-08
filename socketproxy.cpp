@@ -350,6 +350,7 @@ void waitfor_write(int fd,short event,void *arg)
 	struct event *outevw;
 	struct event *inevr;
 	proxy_service *s=(proxy_service *)arg;
+	int infd;
 	if (event&EV_TIMEOUT)
 	{
 		if (!deamon) fprintf(stderr,"%u => %u timeout\n",s->infd,s->outfd);
